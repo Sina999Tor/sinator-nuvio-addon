@@ -8,7 +8,8 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   const TMDB_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || '';
-  const { id } = req.query;
+  const { type, id } = req.query;
+  const sinatorType = type === 'series' ? 'tv' : 'movie';
 
   try {
     let rawItems = [];
@@ -29,20 +30,21 @@ module.exports = async (req, res) => {
 
     const items = Array.isArray(rawItems) ? rawItems : (rawItems.items || rawItems.data || []);
 
+    const filteredItems = items.filter(it => {
+      if (!it) return false;
+      const itType = (it.type === 'shows' || it.type === 'tv' || it.media_type === 'tv') ? 'tv' : 'movie';
+      return itType === sinatorType;
+    });
+
     const metas = [];
-    const queue = items.slice();
+    const queue = filteredItems.slice();
 
     async function worker() {
       while (queue.length) {
         const it = queue.shift();
         try {
-          if (!it) continue;
           const tmdbId = it.id || it.tmdb_id;
           if (!tmdbId) continue;
-
-          const isTv = it.type === 'shows' || it.type === 'tv' || it.media_type === 'tv';
-          const sinatorType = isTv ? 'tv' : 'movie';
-          const stremioType = isTv ? 'series' : 'movie';
 
           const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${tmdbId}?api_key=${TMDB_KEY}&language=cs-CZ&append_to_response=external_ids`);
           const ext = await extRes.json();
@@ -54,7 +56,7 @@ module.exports = async (req, res) => {
 
           metas.push({
             id: imdbId,
-            type: stremioType,
+            type,
             name: ext.title || ext.name || it.title || it.name || (`#` + tmdbId),
             poster: ext.poster_path ? `https://image.tmdb.org/t/p/w500${ext.poster_path}` : undefined,
             releaseInfo: releaseDate ? String(releaseDate).slice(0, 4) : undefined
