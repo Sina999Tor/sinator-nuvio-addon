@@ -1,4 +1,4 @@
-// GET /manifest.json (přepsáno přes vercel.json rewrite z /api/manifest)
+// GET /manifest.json
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
 const KEY = 'F3a9c7e2b6d4185e0c9a2f7b3e6d1c8a4f0b7e3d9c2a5f1b8e4d7c0a3f6b9e2d';
@@ -13,48 +13,39 @@ module.exports = async (req, res) => {
   ];
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
     const r = await fetch(`${SINATOR_BASE}/lists`, {
-      headers: {
-        'x-api-key': KEY,
-        'Authorization': `Bearer ${KEY}`,
-        'Content-Type': 'application/json'
-      }
+      headers: { 'x-api-key': KEY },
+      signal: controller.signal
     });
+    clearTimeout(timeout);
 
     if (r.ok) {
       const lists = await r.json();
-
       if (Array.isArray(lists)) {
         for (const item of lists) {
           if (!item) continue;
-          
           const listId = item.id || item.slug;
           const listName = item.name || item.title || listId;
 
           if (listId) {
-            catalogs.push({
-              type: 'movie',
-              id: `list:${listId}`,
-              name: `Sinator: ${listName}`
-            });
-            catalogs.push({
-              type: 'series',
-              id: `list:${listId}`,
-              name: `Sinator: ${listName}`
-            });
+            catalogs.push({ type: 'movie', id: `list:${listId}`, name: `Sinator: ${listName}` });
+            catalogs.push({ type: 'series', id: `list:${listId}`, name: `Sinator: ${listName}` });
           }
         }
       }
     }
   } catch (e) {
-    // V případě výpadku se vrátí základní Watchlist
+    // V případě chyby nebo timeoutu zachováme alespoň Watchlist
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     id: 'cz.sinator.addon',
     version: '1.0.0',
     name: 'Sinator',
-    description: 'Tvoje seznamy a watchlist ze Sinatoru v Nuviu.',
+    description: 'Tvoje seznamy ze Sinatoru v Nuviu.',
     resources: ['catalog'],
     types: ['movie', 'series'],
     catalogs,
