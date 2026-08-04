@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
     version: '1.0.0',
     name: 'Sinator',
     description: 'Automatické seznamy ze Sinator backendu.',
-    resources: ['catalog'],
+    resources: ['catalog', 'meta'],
     types: ['movie', 'series'],
     catalogs,
     idPrefixes: ['tt']
