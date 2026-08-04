@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
       rawItems = await r.json();
     } else if (typeof id === 'string' && id.startsWith('list:')) {
       const listId = id.slice(5);
-      const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}`, { headers });
+      const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}/items`, { headers });
       rawItems = await r.json();
     }
 
@@ -52,12 +52,14 @@ module.exports = async (req, res) => {
 
           if (!imdbId) continue;
 
+          const releaseDate = ext.release_date || ext.first_air_date || it.year;
+
           metas.push({
             id: imdbId,
             type,
-            name: it.title || it.name || (`#` + tmdbId),
+            name: ext.title || ext.name || it.title || it.name || (`#` + tmdbId),
             poster: ext.poster_path ? `https://image.tmdb.org/t/p/w500${ext.poster_path}` : undefined,
-            releaseInfo: (it.year || ext.release_date || ext.first_air_date) ? String(it.year || ext.release_date || ext.first_air_date).slice(0, 4) : undefined
+            releaseInfo: releaseDate ? String(releaseDate).slice(0, 4) : undefined
           });
         } catch (e) {
           // Chybu jedné položky přeskočíme
