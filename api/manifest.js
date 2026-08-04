@@ -26,6 +26,7 @@ module.exports = async (req, res) => {
 
     if (r.ok) {
       const lists = await r.json();
+      catalogs.push({ type: 'movie', id: 'debug', name: `DEBUG: r.ok, got ${JSON.stringify(lists).slice(0,200)}` });
 
       if (Array.isArray(lists)) {
         for (const item of lists) {
@@ -47,9 +48,11 @@ module.exports = async (req, res) => {
           }
         }
       }
+    } else {
+      catalogs.push({ type: 'movie', id: 'debug', name: `DEBUG: r not ok, status ${r.status}` });
     }
   } catch (e) {
-    // V případě výpadku zachováme alespoň Watchlist
+    catalogs.push({ type: 'movie', id: 'debug', name: `DEBUG ERROR: ${e.message}` });
   }
 
   res.status(200).json({
