@@ -16,26 +16,21 @@ module.exports = async (req, res) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
 
-    // Načtení seznamů z backendu
     const r = await fetch(`${SINATOR_BASE}/lists`, {
       headers: {
-        'x-api-key': KEY,
-        'Authorization': `Bearer ${KEY}`,
-        'Content-Type': 'application/json'
+        'x-api-key': KEY
       },
       signal: controller.signal
     });
     clearTimeout(timeout);
 
     if (r.ok) {
-      const data = await r.json();
-      const lists = Array.isArray(data) ? data : (data.lists || data.data || []);
+      const lists = await r.json();
 
       if (Array.isArray(lists)) {
         for (const item of lists) {
           if (!item) continue;
-          
-          const listId = item.id || item.slug || item.key;
+          const listId = item.id || item.slug;
           const listName = item.name || item.title || listId;
 
           if (listId) {
@@ -54,14 +49,14 @@ module.exports = async (req, res) => {
       }
     }
   } catch (e) {
-    // Pokud načítání selže nebo vyprší čas, zůstane zachován Watchlist
+    // V případě výpadku zachováme alespoň Watchlist
   }
 
   res.status(200).json({
     id: 'cz.sinator.addon',
     version: '1.0.0',
     name: 'Sinator',
-    description: 'Propojení tvého Sinator backendu přímo do Nuvia.',
+    description: 'Automatické seznamy ze Sinator backendu.',
     resources: ['catalog'],
     types: ['movie', 'series'],
     catalogs,
