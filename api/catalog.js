@@ -1,7 +1,7 @@
 // GET /catalog/:type/:id.json
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
-const KEY = 'f3a9c7e2b6d4185e0c9a2f7b3e6d1c8a4f0b7e3d9c2a5f1b8e4d7c0a3f6b9e2d';
+const KEY = process.env.SINATOR_BACKEND_KEY || '';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
