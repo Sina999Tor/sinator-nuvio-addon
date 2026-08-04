@@ -1,24 +1,22 @@
 // GET /manifest.json (přepsáno přes vercel.json rewrite z /api/manifest)
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
+const KEY = 'F3a9c7e2b6d4185e0c9a2f7b3e6d1c8a4f0b7e3d9c2a5f1b8e4d7c0a3f6b9e2d';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  // Načtení klíče z Environment Variables na Vercelu
-  const KEY = process.env.SINATOR_BACKEND_KEY || '';
-
   const catalogs = [
-    { type: 'movie', id: 'watchlist', name: 'Sinator: Watchlist - Filmy' },
-    { type: 'series', id: 'watchlist', name: 'Sinator: Watchlist - Seriály' }
+    { type: 'movie', id: 'watchlist', name: 'Sinator: Watchlist' },
+    { type: 'series', id: 'watchlist', name: 'Sinator: Watchlist' }
   ];
 
   try {
-    // Volání backendu s předaným x-api-key hlavičkou
     const r = await fetch(`${SINATOR_BASE}/lists`, {
       headers: {
         'x-api-key': KEY,
+        'Authorization': `Bearer ${KEY}`,
         'Content-Type': 'application/json'
       }
     });
@@ -30,7 +28,6 @@ module.exports = async (req, res) => {
         for (const item of lists) {
           if (!item) continue;
           
-          // Podpora pro různé struktury (id / slug / name)
           const listId = item.id || item.slug;
           const listName = item.name || item.title || listId;
 
@@ -38,19 +35,19 @@ module.exports = async (req, res) => {
             catalogs.push({
               type: 'movie',
               id: `list:${listId}`,
-              name: `Sinator: ${listName} (Filmy)`
+              name: `Sinator: ${listName}`
             });
             catalogs.push({
               type: 'series',
               id: `list:${listId}`,
-              name: `Sinator: ${listName} (Seriály)`
+              name: `Sinator: ${listName}`
             });
           }
         }
       }
     }
   } catch (e) {
-    // V případě výpadku backendu vrátí alespoň Watchlist
+    // V případě výpadku se vrátí základní Watchlist
   }
 
   res.status(200).json({
