@@ -14,38 +14,54 @@ module.exports = async (req, res) => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
+    const timeout = setTimeout(() => controller.abort(), 4000);
 
+    // Načtení seznamů z backendu
     const r = await fetch(`${SINATOR_BASE}/lists`, {
-      headers: { 'x-api-key': KEY },
+      headers: {
+        'x-api-key': KEY,
+        'Authorization': `Bearer ${KEY}`,
+        'Content-Type': 'application/json'
+      },
       signal: controller.signal
     });
     clearTimeout(timeout);
 
     if (r.ok) {
-      const lists = await r.json();
+      const data = await r.json();
+      const lists = Array.isArray(data) ? data : (data.lists || data.data || []);
+
       if (Array.isArray(lists)) {
         for (const item of lists) {
           if (!item) continue;
-          const listId = item.id || item.slug;
+          
+          const listId = item.id || item.slug || item.key;
           const listName = item.name || item.title || listId;
 
           if (listId) {
-            catalogs.push({ type: 'movie', id: `list:${listId}`, name: `Sinator: ${listName}` });
-            catalogs.push({ type: 'series', id: `list:${listId}`, name: `Sinator: ${listName}` });
+            catalogs.push({
+              type: 'movie',
+              id: `list:${listId}`,
+              name: `Sinator: ${listName}`
+            });
+            catalogs.push({
+              type: 'series',
+              id: `list:${listId}`,
+              name: `Sinator: ${listName}`
+            });
           }
         }
       }
     }
   } catch (e) {
-    // V případě chyby nebo timeoutu zachováme alespoň Watchlist
+    // Pokud načítání selže nebo vyprší čas, zůstane zachován Watchlist
   }
 
-  return res.status(200).json({
+  res.status(200).json({
     id: 'cz.sinator.addon',
     version: '1.0.0',
     name: 'Sinator',
-    description: 'Tvoje seznamy ze Sinatoru v Nuviu.',
+    description: 'Propojení tvého Sinator backendu přímo do Nuvia.',
     resources: ['catalog'],
     types: ['movie', 'series'],
     catalogs,
