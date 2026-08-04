@@ -1,26 +1,30 @@
 // GET /catalog/:type/:id.json (přepsáno přes vercel.json rewrite z /api/catalog)
-// type = 'movie' | 'series'
-// id = 'watchlist' nebo 'list:<ID_SEZNAMU_Z_SINATORU>'
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
+const KEY = 'F3a9c7e2b6d4185e0c9a2f7b3e6d1c8a4f0b7e3d9c2a5f1b8e4d7c0a3f6b9e2d';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  const KEY = process.env.SINATOR_BACKEND_KEY || '';
   const TMDB_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || '';
   const { type, id } = req.query;
   const sinatorType = type === 'series' ? 'tv' : 'movie';
 
   try {
     let items = [];
+    const headers = {
+      'x-api-key': KEY,
+      'Authorization': `Bearer ${KEY}`,
+      'Content-Type': 'application/json'
+    };
+
     if (id === 'watchlist') {
-      const r = await fetch(`${SINATOR_BASE}/watchlist`, { headers: { 'x-api-key': KEY } });
+      const r = await fetch(`${SINATOR_BASE}/watchlist`, { headers });
       items = await r.json();
     } else if (typeof id === 'string' && id.startsWith('list:')) {
       const listId = id.slice(5);
-      const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}`, { headers: { 'x-api-key': KEY } });
+      const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}`, { headers });
       items = await r.json();
     }
 
@@ -31,7 +35,6 @@ module.exports = async (req, res) => {
       return itType === sinatorType;
     });
 
-    // Vyřešit IMDb ID a postery z TMDB s omezenou souběžností
     const metas = [];
     const queue = items.slice();
 
@@ -53,7 +56,7 @@ module.exports = async (req, res) => {
             releaseInfo: it.year ? String(it.year) : undefined
           });
         } catch (e) {
-          // Jednu položku přeskočit, zbytek katalogu ať se načte
+          // Jednu položku přeskočit, zbytek katalogu načíst
         }
       }
     }
