@@ -46,7 +46,7 @@ module.exports = async (req, res) => {
           const tmdbId = it.id || it.tmdb_id;
           if (!tmdbId) continue;
 
-          const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${tmdbId}?api_key=${TMDB_KEY}&append_to_response=external_ids`);
+          const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${tmdbId}?api_key=${TMDB_KEY}&language=cs-CZ&append_to_response=external_ids`);
           const ext = await extRes.json();
           const imdbId = ext.external_ids?.imdb_id || ext.imdb_id;
 
