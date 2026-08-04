@@ -1,4 +1,4 @@
-// GET /catalog/:type/:id.json (přepsáno přes vercel.json rewrite z /api/catalog)
+// GET /catalog/:type/:id.json
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
 const KEY = 'F3a9c7e2b6d4185e0c9a2f7b3e6d1c8a4f0b7e3d9c2a5f1b8e4d7c0a3f6b9e2d';
@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   const sinatorType = type === 'series' ? 'tv' : 'movie';
 
   try {
-    let items = [];
+    let rawItems = [];
     const headers = {
       'x-api-key': KEY,
       'Authorization': `Bearer ${KEY}`,
@@ -21,28 +21,32 @@ module.exports = async (req, res) => {
 
     if (id === 'watchlist') {
       const r = await fetch(`${SINATOR_BASE}/watchlist`, { headers });
-      items = await r.json();
+      rawItems = await r.json();
     } else if (typeof id === 'string' && id.startsWith('list:')) {
       const listId = id.slice(5);
       const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}`, { headers });
-      items = await r.json();
+      rawItems = await r.json();
     }
 
-    if (!Array.isArray(items)) items = [];
+    const items = Array.isArray(rawItems) ? rawItems : (rawItems.items || rawItems.data || []);
 
-    items = items.filter(it => {
-      const itType = (it.type === 'shows' || it.type === 'tv') ? 'tv' : 'movie';
+    const filteredItems = items.filter(it => {
+      if (!it) return false;
+      const itType = (it.type === 'shows' || it.type === 'tv' || it.media_type === 'tv') ? 'tv' : 'movie';
       return itType === sinatorType;
     });
 
     const metas = [];
-    const queue = items.slice();
+    const queue = filteredItems.slice();
 
     async function worker() {
       while (queue.length) {
         const it = queue.shift();
         try {
-          const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}?api_key=${TMDB_KEY}&append_to_response=external_ids`);
+          const tmdbId = it.id || it.tmdb_id;
+          if (!tmdbId) continue;
+
+          const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${tmdbId}?api_key=${TMDB_KEY}&append_to_response=external_ids`);
           const ext = await extRes.json();
           const imdbId = ext.external_ids?.imdb_id || ext.imdb_id;
 
@@ -51,12 +55,12 @@ module.exports = async (req, res) => {
           metas.push({
             id: imdbId,
             type,
-            name: it.title || (`#` + it.id),
+            name: it.title || it.name || (`#` + tmdbId),
             poster: ext.poster_path ? `https://image.tmdb.org/t/p/w500${ext.poster_path}` : undefined,
-            releaseInfo: it.year ? String(it.year) : undefined
+            releaseInfo: (it.year || ext.release_date || ext.first_air_date) ? String(it.year || ext.release_date || ext.first_air_date).slice(0, 4) : undefined
           });
         } catch (e) {
-          // Jednu položku přeskočit, zbytek katalogu načíst
+          // Chybu jedné položky přeskočíme
         }
       }
     }
