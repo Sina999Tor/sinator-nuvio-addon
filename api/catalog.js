@@ -69,6 +69,8 @@ module.exports = async (req, res) => {
 
     await Promise.all(Array.from({ length: 5 }, worker));
 
+    metas.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'cs'));
+
     res.status(200).json({ metas });
   } catch (e) {
     res.status(200).json({ metas: [] });
