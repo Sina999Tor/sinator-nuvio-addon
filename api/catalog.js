@@ -54,15 +54,19 @@ module.exports = async (req, res) => {
             while (queue.length) {
                 const it = queue.shift();
                 try {
-                    const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}/external_ids?api_key=${TMDB_KEY}`);
-                    const ext = await extRes.json();
-                    if (!ext || !ext.imdb_id) continue;
+                    const detRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}?api_key=${TMDB_KEY}&append_to_response=external_ids`);
+                    const det = await detRes.json();
+                    const imdbId = det && det.external_ids && det.external_ids.imdb_id;
+                    if (!imdbId) continue;
+                    const title = det.title || det.name || it.title || ('#' + it.id);
+                    const posterPath = det.poster_path || it.poster_path;
+                    const releaseDate = det.release_date || det.first_air_date;
                     metas.push({
-                        id: ext.imdb_id,
+                        id: imdbId,
                         type,
-                        name: it.title || ('#' + it.id),
-                        poster: it.poster_path ? `https://image.tmdb.org/t/p/w500${it.poster_path}` : undefined,
-                        releaseInfo: it.year ? String(it.year) : undefined,
+                        name: title,
+                        poster: posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : undefined,
+                        releaseInfo: releaseDate ? releaseDate.slice(0, 4) : (it.year ? String(it.year) : undefined),
                     });
                 } catch (e) {
                     // Jednu položku přeskočit, zbytek katalogu ať se načte dál.
