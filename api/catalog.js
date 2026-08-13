@@ -78,6 +78,16 @@ module.exports = async (req, res) => {
         }
         await Promise.all(Array.from({ length: 5 }, worker));
 
+        // Seřadit abecedně dle názvu (A-Z, česká lokalizace přes localeCompare),
+        // při shodném názvu podle roku vzestupně (starší -> novější).
+        metas.sort((a, b) => {
+            const nameCmp = (a.name || '').localeCompare(b.name || '', 'cs', { sensitivity: 'base' });
+            if (nameCmp !== 0) return nameCmp;
+            const yearA = parseInt(a.releaseInfo, 10) || 0;
+            const yearB = parseInt(b.releaseInfo, 10) || 0;
+            return yearA - yearB;
+        });
+
         res.status(200).json({ metas });
     } catch (e) {
         res.status(200).json({ metas: [] });
