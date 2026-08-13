@@ -54,10 +54,13 @@ module.exports = async (req, res) => {
             while (queue.length) {
                 const it = queue.shift();
                 try {
-                    const detRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}?api_key=${TMDB_KEY}&append_to_response=external_ids`);
+                    const detRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}?api_key=${TMDB_KEY}&language=cs-CZ&append_to_response=external_ids`);
                     const det = await detRes.json();
                     const imdbId = det && det.external_ids && det.external_ids.imdb_id;
                     if (!imdbId) continue;
+                    // TMDB u méně známých titulů někdy vrátí pro cs-CZ prázdný title/name
+                    // (chybí CZ překlad) - pak radši spadnout zpátky na anglický název
+                    // z Sinatoru, než ukázat prázdný/undefined titul.
                     const title = det.title || det.name || it.title || ('#' + it.id);
                     const posterPath = det.poster_path || it.poster_path;
                     const releaseDate = det.release_date || det.first_air_date;
