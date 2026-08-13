@@ -1,78 +1,78 @@
-// GET /catalog/:type/:id.json
+// GET /catalog/:type/:id.json (přepsáno přes vercel.json rewrite z /api/catalog?type=..&id=..)
+// type = 'movie' | 'series'
+// id   = 'watchlist'  nebo  'list:<ID_SEZNAMU_Z_SINATORU>'
+//
+// Stremio/Nuvio potřebuje IMDb id (tt1234567) u každé položky, aby na ni
+// dokázaly navázat ostatní addony (Cinemeta na detail, streamovací addony
+// na přehrání). Sinator má u položek TMDB id, takže se tu k němu přes TMDB
+// dotáhne odpovídající IMDb id (external_ids). Položky, u kterých se IMDb id
+// nenajde, se v katalogu prostě přeskočí.
 
 const SINATOR_BASE = 'https://sinator-backend.vercel.app/api';
-const KEY = process.env.SINATOR_BACKEND_KEY || '';
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  const TMDB_KEY = process.env.TMDB_API_KEY || process.env.TMDB_KEY || '';
-  const { type, id } = req.query;
-  const sinatorType = type === 'series' ? 'tv' : 'movie';
+    const KEY = process.env.SINATOR_BACKEND_KEY || '';
+    const TMDB_KEY = process.env.TMDB_API_KEY || '';
+    const { type, id, extra } = req.query;
+    const sinatorType = type === 'series' ? 'tv' : 'movie';
 
-  try {
-    let rawItems = [];
-    const headers = {
-      'x-api-key': KEY,
-      'Authorization': `Bearer ${KEY}`,
-      'Content-Type': 'application/json'
-    };
-
-    if (id === 'watchlist') {
-      const r = await fetch(`${SINATOR_BASE}/watchlist`, { headers });
-      rawItems = await r.json();
-    } else if (typeof id === 'string' && id.startsWith('list:')) {
-      const listId = id.slice(5);
-      const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}/items`, { headers });
-      rawItems = await r.json();
-    }
-
-    const items = Array.isArray(rawItems) ? rawItems : (rawItems.items || rawItems.data || []);
-
-    const filteredItems = items.filter(it => {
-      if (!it) return false;
-      const itType = (it.type === 'shows' || it.type === 'tv' || it.media_type === 'tv') ? 'tv' : 'movie';
-      return itType === sinatorType;
-    });
-
-    const metas = [];
-    const queue = filteredItems.slice();
-
-    async function worker() {
-      while (queue.length) {
-        const it = queue.shift();
-        try {
-          const tmdbId = it.id || it.tmdb_id;
-          if (!tmdbId) continue;
-
-          const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${tmdbId}?api_key=${TMDB_KEY}&language=cs-CZ&append_to_response=external_ids`);
-          const ext = await extRes.json();
-          const imdbId = ext.external_ids?.imdb_id || ext.imdb_id;
-
-          if (!imdbId) continue;
-
-          const releaseDate = ext.release_date || ext.first_air_date || it.year;
-
-          metas.push({
-            id: imdbId,
-            type,
-            name: ext.title || ext.name || it.title || it.name || (`#` + tmdbId),
-            poster: ext.poster_path ? `https://image.tmdb.org/t/p/w500${ext.poster_path}` : undefined,
-            releaseInfo: releaseDate ? String(releaseDate).slice(0, 4) : undefined
-          });
-        } catch (e) {
-          // Chybu jedné položky přeskočíme
+    // Stránkování: první stránka (bez extra, nebo skip=0) vrací VŠECHNY položky
+    // najednou, takže na jakoukoliv další stránku (skip=100, skip=200, ...)
+    // stačí vrátit prázdný seznam - žádná další data k dodání není.
+    if (typeof extra === 'string') {
+        const m = extra.match(/skip=(\d+)/);
+        if (m && parseInt(m[1], 10) > 0) {
+            return res.status(200).json({ metas: [] });
         }
-      }
     }
 
-    await Promise.all(Array.from({ length: 5 }, worker));
+    try {
+        let items = [];
+        if (id === 'watchlist') {
+            const r = await fetch(`${SINATOR_BASE}/watchlist`, { headers: { 'x-api-key': KEY } });
+            items = await r.json();
+        } else if (typeof id === 'string' && id.startsWith('list:')) {
+            const listId = id.slice(5);
+            const r = await fetch(`${SINATOR_BASE}/lists/${encodeURIComponent(listId)}/items`, { headers: { 'x-api-key': KEY } });
+            items = await r.json();
+        }
+        if (!Array.isArray(items)) items = [];
 
-    metas.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'cs'));
+        items = items.filter(it => {
+            const itType = (it.type === 'shows' || it.type === 'tv') ? 'tv' : 'movie';
+            return itType === sinatorType;
+        });
 
-    res.status(200).json({ metas });
-  } catch (e) {
-    res.status(200).json({ metas: [] });
-  }
+        // Vyřešit IMDb id pro každou položku s omezenou souběžností (5 najednou),
+        // ať se to zbytečně nezasekává na desítkách sekvenčních requestů na TMDB.
+        const metas = [];
+        const queue = items.slice();
+        async function worker() {
+            while (queue.length) {
+                const it = queue.shift();
+                try {
+                    const extRes = await fetch(`https://api.themoviedb.org/3/${sinatorType}/${it.id}/external_ids?api_key=${TMDB_KEY}`);
+                    const ext = await extRes.json();
+                    if (!ext || !ext.imdb_id) continue;
+                    metas.push({
+                        id: ext.imdb_id,
+                        type,
+                        name: it.title || ('#' + it.id),
+                        poster: it.poster_path ? `https://image.tmdb.org/t/p/w500${it.poster_path}` : undefined,
+                        releaseInfo: it.year ? String(it.year) : undefined,
+                    });
+                } catch (e) {
+                    // Jednu položku přeskočit, zbytek katalogu ať se načte dál.
+                }
+            }
+        }
+        await Promise.all(Array.from({ length: 5 }, worker));
+
+        res.status(200).json({ metas });
+    } catch (e) {
+        res.status(200).json({ metas: [] });
+    }
 };
